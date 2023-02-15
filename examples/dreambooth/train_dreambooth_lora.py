@@ -640,6 +640,9 @@ def main(args):
 
     # Load scheduler and models
     noise_scheduler = DDPMScheduler.from_pretrained(args.pretrained_model_name_or_path, subfolder="scheduler")
+
+    # above code is additional
+
     text_encoder = text_encoder_cls.from_pretrained(
         args.pretrained_model_name_or_path, subfolder="text_encoder", revision=args.revision
     )
@@ -671,6 +674,14 @@ def main(args):
             unet.enable_xformers_memory_efficient_attention()
         else:
             raise ValueError("xformers is not available. Make sure it is installed correctly")
+
+    if not args.train_text_encoder:
+        text_encoder.requires_grad_(False)
+
+    if args.gradient_checkpointing:
+        # unet.enable_gradient_checkpointing()
+        if args.train_text_encoder:
+            text_encoder.gradient_checkpointing_enable()
 
     # now we will add new LoRA weights to the attention layers
     # It's important to realize here how many attention weights will be added and of which sizes
@@ -735,9 +746,13 @@ def main(args):
     else:
         optimizer_class = torch.optim.AdamW
 
+    params_to_optimize = (
+        itertools.chain(lora_layers.parameters(), text_encoder.parameters()) if args.train_text_encoder else lora_layers.parameters()
+    )
+
     # Optimizer creation
     optimizer = optimizer_class(
-        lora_layers.parameters(),
+        params_to_optimize,
         lr=args.learning_rate,
         betas=(args.adam_beta1, args.adam_beta2),
         weight_decay=args.adam_weight_decay,
@@ -780,10 +795,17 @@ def main(args):
     )
 
     # Prepare everything with our `accelerator`.
-    lora_layers, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
-        lora_layers, optimizer, train_dataloader, lr_scheduler
-    )
+    if args.train_text_encoder:
+        lora_layers, text_encoder, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+            lora_layers, text_encoder, optimizer, train_dataloader, lr_scheduler
+        )
+    else:
+        lora_layers, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+            lora_layers, optimizer, train_dataloader, lr_scheduler
+        )
 
+    # if args.train_text_encoder:
+    #     text_encoder.to(accelerator.device, dtype=weight_dtype)
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
     if overrode_max_train_steps:
@@ -841,6 +863,8 @@ def main(args):
 
     for epoch in range(first_epoch, args.num_train_epochs):
         unet.train()
+        if args.train_text_encoder:
+            text_encoder.train()
         for step, batch in enumerate(train_dataloader):
             # Skip steps until we reach the resumed step
             if args.resume_from_checkpoint and epoch == first_epoch and step < resume_step:
@@ -911,6 +935,8 @@ def main(args):
                     if accelerator.is_main_process:
                         save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
                         accelerator.save_state(save_path)
+                        unet1 = unet.to(torch.float32)
+                        unet1.save_attn_procs(save_path)
                         logger.info(f"Saved state to {save_path}")
 
             logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
