@@ -45,6 +45,7 @@ from diffusers import (
     PNDMScheduler,
     PriorTransformer,
     StableDiffusionControlNetPipeline,
+    StableDiffusionControlNetInpaintPipeline,
     StableDiffusionPipeline,
     StableUnCLIPImg2ImgPipeline,
     StableUnCLIPPipeline,
