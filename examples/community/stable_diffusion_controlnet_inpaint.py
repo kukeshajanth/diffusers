@@ -886,18 +886,18 @@ class StableDiffusionControlNetInpaintPipeline(DiffusionPipeline):
         height, width = self._default_height_width(height, width, controlnet_conditioning_image)
 
         # 1. Check inputs. Raise error if not correct
-        self.check_inputs(
-            prompt,
-            image,
-            mask_image,
-            controlnet_conditioning_image,
-            height,
-            width,
-            callback_steps,
-            negative_prompt,
-            prompt_embeds,
-            negative_prompt_embeds,
-        )
+        # self.check_inputs(
+        #     prompt,
+        #     image,
+        #     mask_image,
+        #     controlnet_conditioning_image,
+        #     height,
+        #     width,
+        #     callback_steps,
+        #     negative_prompt,
+        #     prompt_embeds,
+        #     negative_prompt_embeds,
+        # )
 
         # 2. Define call parameters
         if prompt is not None and isinstance(prompt, str):

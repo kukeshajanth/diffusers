@@ -89,103 +89,6 @@ EXAMPLE_DOC_STRING = """
         ```
 """
 
-def prepare_mask_and_masked_image(image, mask):
-    """
-    Prepares a pair (image, mask) to be consumed by the Stable Diffusion pipeline. This means that those inputs will be
-    converted to ``torch.Tensor`` with shapes ``batch x channels x height x width`` where ``channels`` is ``3`` for the
-    ``image`` and ``1`` for the ``mask``.
-    The ``image`` will be converted to ``torch.float32`` and normalized to be in ``[-1, 1]``. The ``mask`` will be
-    binarized (``mask > 0.5``) and cast to ``torch.float32`` too.
-    Args:
-        image (Union[np.array, PIL.Image, torch.Tensor]): The image to inpaint.
-            It can be a ``PIL.Image``, or a ``height x width x 3`` ``np.array`` or a ``channels x height x width``
-            ``torch.Tensor`` or a ``batch x channels x height x width`` ``torch.Tensor``.
-        mask (_type_): The mask to apply to the image, i.e. regions to inpaint.
-            It can be a ``PIL.Image``, or a ``height x width`` ``np.array`` or a ``1 x height x width``
-            ``torch.Tensor`` or a ``batch x 1 x height x width`` ``torch.Tensor``.
-    Raises:
-        ValueError: ``torch.Tensor`` images should be in the ``[-1, 1]`` range. ValueError: ``torch.Tensor`` mask
-        should be in the ``[0, 1]`` range. ValueError: ``mask`` and ``image`` should have the same spatial dimensions.
-        TypeError: ``mask`` is a ``torch.Tensor`` but ``image`` is not
-            (ot the other way around).
-    Returns:
-        tuple[torch.Tensor]: The pair (mask, masked_image) as ``torch.Tensor`` with 4
-            dimensions: ``batch x channels x height x width``.
-    """
-    if isinstance(image, torch.Tensor):
-        if not isinstance(mask, torch.Tensor):
-            raise TypeError(f"`image` is a torch.Tensor but `mask` (type: {type(mask)} is not")
-
-        # Batch single image
-        if image.ndim == 3:
-            assert image.shape[0] == 3, "Image outside a batch should be of shape (3, H, W)"
-            image = image.unsqueeze(0)
-
-        # Batch and add channel dim for single mask
-        if mask.ndim == 2:
-            mask = mask.unsqueeze(0).unsqueeze(0)
-
-        # Batch single mask or add channel dim
-        if mask.ndim == 3:
-            # Single batched mask, no channel dim or single mask not batched but channel dim
-            if mask.shape[0] == 1:
-                mask = mask.unsqueeze(0)
-
-            # Batched masks no channel dim
-            else:
-                mask = mask.unsqueeze(1)
-
-        assert image.ndim == 4 and mask.ndim == 4, "Image and Mask must have 4 dimensions"
-        assert image.shape[-2:] == mask.shape[-2:], "Image and Mask must have the same spatial dimensions"
-        assert image.shape[0] == mask.shape[0], "Image and Mask must have the same batch size"
-
-        # Check image is in [-1, 1]
-        if image.min() < -1 or image.max() > 1:
-            raise ValueError("Image should be in [-1, 1] range")
-
-        # Check mask is in [0, 1]
-        if mask.min() < 0 or mask.max() > 1:
-            raise ValueError("Mask should be in [0, 1] range")
-
-        # Binarize mask
-        mask[mask < 0.5] = 0
-        mask[mask >= 0.5] = 1
-
-        # Image as float32
-        image = image.to(dtype=torch.float32)
-    elif isinstance(mask, torch.Tensor):
-        raise TypeError(f"`mask` is a torch.Tensor but `image` (type: {type(image)} is not")
-    else:
-        # preprocess image
-        if isinstance(image, (PIL.Image.Image, np.ndarray)):
-            image = [image]
-
-        if isinstance(image, list) and isinstance(image[0], PIL.Image.Image):
-            image = [np.array(i.convert("RGB"))[None, :] for i in image]
-            image = np.concatenate(image, axis=0)
-        elif isinstance(image, list) and isinstance(image[0], np.ndarray):
-            image = np.concatenate([i[None, :] for i in image], axis=0)
-
-        image = image.transpose(0, 3, 1, 2)
-        image = torch.from_numpy(image).to(dtype=torch.float32) / 127.5 - 1.0
-
-        # preprocess mask
-        if isinstance(mask, (PIL.Image.Image, np.ndarray)):
-            mask = [mask]
-
-        if isinstance(mask, list) and isinstance(mask[0], PIL.Image.Image):
-            mask = np.concatenate([np.array(m.convert("L"))[None, None, :] for m in mask], axis=0)
-            mask = mask.astype(np.float32) / 255.0
-        elif isinstance(mask, list) and isinstance(mask[0], np.ndarray):
-            mask = np.concatenate([m[None, None, :] for m in mask], axis=0)
-
-        mask[mask < 0.5] = 0
-        mask[mask >= 0.5] = 1
-        mask = torch.from_numpy(mask)
-
-    masked_image = image * (mask < 0.5)
-
-    return mask, masked_image
 
 class MultiControlNetModel(ModelMixin):
     r"""
@@ -809,113 +712,6 @@ class StableDiffusionControlNetPipeline(DiffusionPipeline, TextualInversionLoade
 
         return height, width
 
-    def controlnet_hint_conversion(self, controlnet_hint, height, width, num_images_per_prompt):
-        channels = 3
-        if isinstance(controlnet_hint, torch.Tensor):
-            # torch.Tensor: acceptble shape are any of chw, bchw(b==1) or bchw(b==num_images_per_prompt)
-            shape_chw = (channels, height, width)
-            shape_bchw = (1, channels, height, width)
-            shape_nchw = (num_images_per_prompt, channels, height, width)
-            if controlnet_hint.shape in [shape_chw, shape_bchw, shape_nchw]:
-                controlnet_hint = controlnet_hint.to(dtype=self.controlnet.dtype, device=self.controlnet.device)
-                if controlnet_hint.shape != shape_nchw:
-                    controlnet_hint = controlnet_hint.repeat(num_images_per_prompt, 1, 1, 1)
-                return controlnet_hint
-            else:
-                raise ValueError(
-                    f"Acceptble shape of `controlnet_hint` are any of ({channels}, {height}, {width}),"
-                    + f" (1, {channels}, {height}, {width}) or ({num_images_per_prompt}, "
-                    + f"{channels}, {height}, {width}) but is {controlnet_hint.shape}"
-                )
-        elif isinstance(controlnet_hint, np.ndarray):
-            # np.ndarray: acceptable shape is any of hw, hwc, bhwc(b==1) or bhwc(b==num_images_per_promot)
-            # hwc is opencv compatible image format. Color channel must be BGR Format.
-            if controlnet_hint.shape == (height, width):
-                controlnet_hint = np.repeat(controlnet_hint[:, :, np.newaxis], channels, axis=2)  # hw -> hwc(c==3)
-            shape_hwc = (height, width, channels)
-            shape_bhwc = (1, height, width, channels)
-            shape_nhwc = (num_images_per_prompt, height, width, channels)
-            if controlnet_hint.shape in [shape_hwc, shape_bhwc, shape_nhwc]:
-                controlnet_hint = torch.from_numpy(controlnet_hint.copy())
-                controlnet_hint = controlnet_hint.to(dtype=self.controlnet.dtype, device=self.controlnet.device)
-                controlnet_hint /= 255.0
-                if controlnet_hint.shape != shape_nhwc:
-                    controlnet_hint = controlnet_hint.repeat(num_images_per_prompt, 1, 1, 1)
-                controlnet_hint = controlnet_hint.permute(0, 3, 1, 2)  # b h w c -> b c h w
-                return controlnet_hint
-            else:
-                raise ValueError(
-                    f"Acceptble shape of `controlnet_hint` are any of ({width}, {channels}), "
-                    + f"({height}, {width}, {channels}), "
-                    + f"(1, {height}, {width}, {channels}) or "
-                    + f"({num_images_per_prompt}, {channels}, {height}, {width}) but is {controlnet_hint.shape}"
-                )
-        elif isinstance(controlnet_hint, PIL.Image.Image):
-            if controlnet_hint.size == (width, height):
-                controlnet_hint = controlnet_hint.convert("RGB")  # make sure 3 channel RGB format
-                controlnet_hint = np.array(controlnet_hint)  # to numpy
-                controlnet_hint = controlnet_hint[:, :, ::-1]  # RGB -> BGR
-                return self.controlnet_hint_conversion(controlnet_hint, height, width, num_images_per_prompt)
-            else:
-                raise ValueError(
-                    f"Acceptable image size of `controlnet_hint` is ({width}, {height}) but is {controlnet_hint.size}"
-                )
-        else:
-            raise ValueError(
-                f"Acceptable type of `controlnet_hint` are any of torch.Tensor, np.ndarray, PIL.Image.Image but is {type(controlnet_hint)}"
-            )
-    
-    def prepare_mask_latents(
-        self, mask, masked_image, batch_size, height, width, dtype, device, generator, do_classifier_free_guidance
-    ):
-        # resize the mask to latents shape as we concatenate the mask to the latents
-        # we do that before converting to dtype to avoid breaking in case we're using cpu_offload
-        # and half precision
-        mask = torch.nn.functional.interpolate(
-            mask, size=(height // self.vae_scale_factor, width // self.vae_scale_factor)
-        )
-        mask = mask.to(device=device, dtype=dtype)
-
-        masked_image = masked_image.to(device=device, dtype=dtype)
-
-        # encode the mask image into latents space so we can concatenate it to the latents
-        if isinstance(generator, list):
-            masked_image_latents = [
-                self.vae.encode(masked_image[i : i + 1]).latent_dist.sample(generator=generator[i])
-                for i in range(batch_size)
-            ]
-            masked_image_latents = torch.cat(masked_image_latents, dim=0)
-        else:
-            masked_image_latents = self.vae.encode(masked_image).latent_dist.sample(generator=generator)
-        masked_image_latents = self.vae.config.scaling_factor * masked_image_latents
-
-        # duplicate mask and masked_image_latents for each generation per prompt, using mps friendly method
-        if mask.shape[0] < batch_size:
-            if not batch_size % mask.shape[0] == 0:
-                raise ValueError(
-                    "The passed mask and the required batch size don't match. Masks are supposed to be duplicated to"
-                    f" a total batch size of {batch_size}, but {mask.shape[0]} masks were passed. Make sure the number"
-                    " of masks that you pass is divisible by the total requested batch size."
-                )
-            mask = mask.repeat(batch_size // mask.shape[0], 1, 1, 1)
-        if masked_image_latents.shape[0] < batch_size:
-            if not batch_size % masked_image_latents.shape[0] == 0:
-                raise ValueError(
-                    "The passed images and the required batch size don't match. Images are supposed to be duplicated"
-                    f" to a total batch size of {batch_size}, but {masked_image_latents.shape[0]} images were passed."
-                    " Make sure the number of images that you pass is divisible by the total requested batch size."
-                )
-            masked_image_latents = masked_image_latents.repeat(batch_size // masked_image_latents.shape[0], 1, 1, 1)
-
-        mask = torch.cat([mask] * 2) if do_classifier_free_guidance else mask
-        masked_image_latents = (
-            torch.cat([masked_image_latents] * 2) if do_classifier_free_guidance else masked_image_latents
-        )
-
-        # aligning device to prevent device errors when concating it with the latent model input
-        masked_image_latents = masked_image_latents.to(device=device, dtype=dtype)
-        return mask, masked_image_latents
-
     # override DiffusionPipeline
     def save_pretrained(
         self,
@@ -951,9 +747,6 @@ class StableDiffusionControlNetPipeline(DiffusionPipeline, TextualInversionLoade
         callback_steps: int = 1,
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
         controlnet_conditioning_scale: Union[float, List[float]] = 1.0,
-        controlnet_hint: Optional[Union[torch.FloatTensor, np.ndarray, PIL.Image.Image]] = None,
-        init_image: Union[torch.FloatTensor, PIL.Image.Image] = None,
-        mask_image: Union[torch.FloatTensor, PIL.Image.Image] = None,
     ):
         r"""
         Function invoked when calling the pipeline for generation.
@@ -1038,11 +831,6 @@ class StableDiffusionControlNetPipeline(DiffusionPipeline, TextualInversionLoade
         # 0. Default height and width to unet
         height, width = self._default_height_width(height, width, image)
 
-        # 1. Control Embedding check & conversion
-        if controlnet_hint is not None:
-            controlnet_hint = self.controlnet_hint_conversion(controlnet_hint, height, width, num_images_per_prompt)
-
-
         # 1. Check inputs. Raise error if not correct
         self.check_inputs(
             prompt,
@@ -1084,40 +872,38 @@ class StableDiffusionControlNetPipeline(DiffusionPipeline, TextualInversionLoade
             negative_prompt_embeds=negative_prompt_embeds,
         )
 
-        mask, masked_image = prepare_mask_and_masked_image(init_image, mask_image)
+        # 4. Prepare image
+        if isinstance(self.controlnet, ControlNetModel):
+            image = self.prepare_image(
+                image=image,
+                width=width,
+                height=height,
+                batch_size=batch_size * num_images_per_prompt,
+                num_images_per_prompt=num_images_per_prompt,
+                device=device,
+                dtype=self.controlnet.dtype,
+                do_classifier_free_guidance=do_classifier_free_guidance,
+            )
+        elif isinstance(self.controlnet, MultiControlNetModel):
+            images = []
 
-        # # 4. Prepare image
-        # if isinstance(self.controlnet, ControlNetModel):
-        #     image = self.prepare_image(
-        #         image=image,
-        #         width=width,
-        #         height=height,
-        #         batch_size=batch_size * num_images_per_prompt,
-        #         num_images_per_prompt=num_images_per_prompt,
-        #         device=device,
-        #         dtype=self.controlnet.dtype,
-        #         do_classifier_free_guidance=do_classifier_free_guidance,
-        #     )
-        # elif isinstance(self.controlnet, MultiControlNetModel):
-        #     images = []
+            for image_ in image:
+                image_ = self.prepare_image(
+                    image=image_,
+                    width=width,
+                    height=height,
+                    batch_size=batch_size * num_images_per_prompt,
+                    num_images_per_prompt=num_images_per_prompt,
+                    device=device,
+                    dtype=self.controlnet.dtype,
+                    do_classifier_free_guidance=do_classifier_free_guidance,
+                )
 
-        #     for image_ in image:
-        #         image_ = self.prepare_image(
-        #             image=image_,
-        #             width=width,
-        #             height=height,
-        #             batch_size=batch_size * num_images_per_prompt,
-        #             num_images_per_prompt=num_images_per_prompt,
-        #             device=device,
-        #             dtype=self.controlnet.dtype,
-        #             do_classifier_free_guidance=do_classifier_free_guidance,
-        #         )
+                images.append(image_)
 
-        #         images.append(image_)
-
-        #     image = images
-        # else:
-        #     assert False
+            image = images
+        else:
+            assert False
 
         # 5. Prepare timesteps
         self.scheduler.set_timesteps(num_inference_steps, device=device)
@@ -1136,21 +922,6 @@ class StableDiffusionControlNetPipeline(DiffusionPipeline, TextualInversionLoade
             latents,
         )
 
-        mask, masked_image_latents = self.prepare_mask_latents(
-            mask,
-            masked_image,
-            batch_size * num_images_per_prompt,
-            height,
-            width,
-            prompt_embeds.dtype,
-            device,
-            generator,
-            do_classifier_free_guidance,
-        )
-        
-        num_channels_mask = mask.shape[1]
-        num_channels_masked_image = masked_image_latents.shape[1]
-
         # 7. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
 
@@ -1161,30 +932,26 @@ class StableDiffusionControlNetPipeline(DiffusionPipeline, TextualInversionLoade
                 # expand the latents if we are doing classifier free guidance
                 latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
-                
-                if controlnet_hint is not None:
-                    # ControlNet predict the noise residual
-                    control = self.controlnet(
-                        latent_model_input, t, encoder_hidden_states=prompt_embeds, controlnet_hint=controlnet_hint
-                    )
-                    control = [item for item in control]
-                    latent_model_input = torch.cat([latent_model_input, mask, masked_image_latents], dim=1)
-                    noise_pred = self.unet(
-                        latent_model_input,
-                        t,
-                        encoder_hidden_states=prompt_embeds,
-                        cross_attention_kwargs=cross_attention_kwargs,
-                        control=control,
-                    ).sample
-                else:
-                    # predict the noise residual
-                    latent_model_input = torch.cat([latent_model_input, mask, masked_image_latents], dim=1)
-                    noise_pred = self.unet(
-                        latent_model_input,
-                        t,
-                        encoder_hidden_states=prompt_embeds,
-                        cross_attention_kwargs=cross_attention_kwargs,
-                    ).sample
+
+                # controlnet(s) inference
+                down_block_res_samples, mid_block_res_sample = self.controlnet(
+                    latent_model_input,
+                    t,
+                    encoder_hidden_states=prompt_embeds,
+                    controlnet_cond=image,
+                    conditioning_scale=controlnet_conditioning_scale,
+                    return_dict=False,
+                )
+
+                # predict the noise residual
+                noise_pred = self.unet(
+                    latent_model_input,
+                    t,
+                    encoder_hidden_states=prompt_embeds,
+                    cross_attention_kwargs=cross_attention_kwargs,
+                    down_block_additional_residuals=down_block_res_samples,
+                    mid_block_additional_residual=mid_block_res_sample,
+                ).sample
 
                 # perform guidance
                 if do_classifier_free_guidance:
