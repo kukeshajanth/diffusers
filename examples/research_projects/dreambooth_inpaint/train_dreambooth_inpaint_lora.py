@@ -728,6 +728,7 @@ def main():
     progress_bar = tqdm(range(global_step, args.max_train_steps), disable=not accelerator.is_local_main_process)
     progress_bar.set_description("Steps")
 
+    count = 0
     for epoch in range(first_epoch, args.num_train_epochs):
         unet.train()
         for step, batch in enumerate(train_dataloader):
@@ -830,9 +831,9 @@ def main():
 
             if global_step >= args.max_train_steps:
                 break
-
+        count += 1
         if accelerator.is_main_process:
-            if args.validation_prompt is not None and epoch % 50 == 0:
+            if args.validation_prompt is not None and count % 20 == 0:
                 logger.info(
                     f"Running validation... \n Generating {args.num_validation_images} images with prompt:"
                     f" {args.validation_prompt}."
