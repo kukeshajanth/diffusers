@@ -580,7 +580,7 @@ def main():
         for example in examples:
             pil_image = example["PIL_images"]
             # generate a random mask
-            mask = random_mask(pil_image.size, 1, False)
+            mask = random_mask(pil_image.size, 1, True)
             # prepare mask and masked image
             mask, masked_image = prepare_mask_and_masked_image(pil_image, mask)
 

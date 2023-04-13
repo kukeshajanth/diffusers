@@ -339,6 +339,7 @@ class DreamBoothDataset(Dataset):
             raise ValueError("Instance images root doesn't exists.")
 
         self.instance_images_path = list(Path(instance_data_root).iterdir())
+        print(str(self.instance_images_path[0]).split('/')[-1])
         self.num_instance_images = len(self.instance_images_path)
         self.instance_prompt = instance_prompt
         self._length = self.num_instance_images
@@ -624,7 +625,7 @@ def main():
         for example in examples:
             pil_image = example["PIL_images"]
             # generate a random mask
-            mask = random_mask(pil_image.size, 1, False)
+            mask = random_mask(pil_image.size, 1, True)
             # prepare mask and masked image
             mask, masked_image = prepare_mask_and_masked_image(pil_image, mask)
 
@@ -833,7 +834,7 @@ def main():
                 break
         count += 1
         if accelerator.is_main_process:
-            if args.validation_prompt is not None and count % 20 == 0:
+            if args.validation_prompt is not None and count % 15 == 0:
                 logger.info(
                     f"Running validation... \n Generating {args.num_validation_images} images with prompt:"
                     f" {args.validation_prompt}."
