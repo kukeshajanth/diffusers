@@ -19,7 +19,7 @@ from torchvision import transforms
 from tqdm.auto import tqdm
 from transformers import CLIPTextModel, CLIPTokenizer
 
-from diffusers import AutoencoderKL, DDPMScheduler, StableDiffusionInpaintPipeline, UNet2DConditionModel,DiffusionPipeline
+from diffusers import AutoencoderKL, DDPMScheduler, StableDiffusionInpaintPipeline, UNet2DConditionModel,DiffusionPipeline,DPMSolverMultistepScheduler
 from diffusers.loaders import AttnProcsLayers
 from diffusers.models.attention_processor import LoRAAttnProcessor
 from diffusers.optimization import get_scheduler
@@ -838,14 +838,14 @@ def main():
                     f" {args.validation_prompt}."
                 )
                 # create pipeline
-                pipeline = DiffusionPipeline.from_pretrained(
+                pipeline = StableDiffusionInpaintPipeline.from_pretrained(
                     args.pretrained_model_name_or_path,
                     unet=accelerator.unwrap_model(unet),
                     text_encoder=accelerator.unwrap_model(text_encoder),
-                    revision=args.revision,
+                    revision='fp16',
                     torch_dtype=weight_dtype,
                 )
-                pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
+                # pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
                 pipeline = pipeline.to(accelerator.device)
                 pipeline.set_progress_bar_config(disable=True)
 
