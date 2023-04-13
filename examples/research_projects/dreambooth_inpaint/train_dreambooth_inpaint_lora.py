@@ -117,6 +117,27 @@ def parse_args():
         help="The prompt to specify images in the same class as provided instance images.",
     )
     parser.add_argument(
+        "--validation_prompt",
+        type=str,
+        default=None,
+        help="A prompt that is used during validation to verify that the model is learning.",
+    )
+    parser.add_argument(
+        "--num_validation_images",
+        type=int,
+        default=4,
+        help="Number of images that should be generated during validation with `validation_prompt`.",
+    )
+    parser.add_argument(
+        "--validation_epochs",
+        type=int,
+        default=50,
+        help=(
+            "Run dreambooth validation every X epochs. Dreambooth validation consists of running the prompt"
+            " `args.validation_prompt` multiple times: `args.num_validation_images`."
+        ),
+    )
+    parser.add_argument(
         "--with_prior_preservation",
         default=False,
         action="store_true",
