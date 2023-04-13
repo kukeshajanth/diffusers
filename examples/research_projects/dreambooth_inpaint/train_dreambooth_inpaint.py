@@ -121,6 +121,27 @@ def parse_args():
         help="The prompt to specify images in the same class as provided instance images.",
     )
     parser.add_argument(
+        "--validation_prompt",
+        type=str,
+        default=None,
+        help="A prompt that is used during validation to verify that the model is learning.",
+    )
+    parser.add_argument(
+        "--num_validation_images",
+        type=int,
+        default=4,
+        help="Number of images that should be generated during validation with `validation_prompt`.",
+    )
+    parser.add_argument(
+        "--validation_epochs",
+        type=int,
+        default=50,
+        help=(
+            "Run dreambooth validation every X epochs. Dreambooth validation consists of running the prompt"
+            " `args.validation_prompt` multiple times: `args.num_validation_images`."
+        ),
+    )
+    parser.add_argument(
         "--with_prior_preservation",
         default=False,
         action="store_true",
@@ -679,7 +700,7 @@ def main():
     # Only show the progress bar once on each machine.
     progress_bar = tqdm(range(global_step, args.max_train_steps), disable=not accelerator.is_local_main_process)
     progress_bar.set_description("Steps")
-
+    cout = 0
     for epoch in range(first_epoch, args.num_train_epochs):
         unet.train()
         for step, batch in enumerate(train_dataloader):
@@ -775,6 +796,8 @@ def main():
                 if global_step % args.checkpointing_steps == 0:
                     if accelerator.is_main_process:
                         save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
+                        unet1 = unet.to(torch.float32)
+                        unet1.save_attn_procs(save_path)
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
 
@@ -785,7 +808,60 @@ def main():
             if global_step >= args.max_train_steps:
                 break
 
-        accelerator.wait_for_everyone()
+        count += 1
+        if accelerator.is_main_process:
+            if args.validation_prompt is not None and count % 20 == 0:
+                logger.info(
+                    f"Running validation... \n Generating {args.num_validation_images} images with prompt:"
+                    f" {args.validation_prompt}."
+                )
+                # create pipeline
+                pipeline = StableDiffusionInpaintPipeline.from_pretrained(
+                    args.pretrained_model_name_or_path,
+                    unet=accelerator.unwrap_model(unet),
+                    text_encoder=accelerator.unwrap_model(text_encoder),
+                    revision='fp16',
+                    torch_dtype=weight_dtype,
+                )
+                # pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
+                pipeline = pipeline.to(accelerator.device)
+                pipeline.set_progress_bar_config(disable=True)
+
+                # run inference
+                generator = torch.Generator(device=accelerator.device).manual_seed(args.seed)
+                from PIL import Image
+                image_val = Image.open('/content/drive/MyDrive/Dreambooth_inpainting/Self-Correction-Human-Parsing/inputs/shein.png').resize((512,512))
+                mask_image_val = Image.open('/content/drive/MyDrive/Dreambooth_inpainting/Self-Correction-Human-Parsing/outputs/Upper-clothes/shein.png').resize((512,512))
+                # openpose_image = Image.open('/content/drive/MyDrive/Dreambooth_inpainting/controlnet_image/control.png').resize((512,512))
+                images = [
+                    pipeline(prompt = args.validation_prompt, image = image_val, mask_image = mask_image_val,
+                    negative_prompt = "(deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime:1.4), text, close up, cropped, out of frame, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck",
+                    num_inference_steps=25, generator=generator).images[0]
+                    for _ in range(2)
+                ]
+                c = 0
+                for i in images:
+                    i.save('Image_' + str(epoch) + str(c) + '.png' )
+                    c += 1
+
+                # for tracker in accelerator.trackers:
+                #     if tracker.name == "tensorboard":
+                #         np_images = np.stack([np.asarray(img) for img in images])
+                #         tracker.writer.add_images("validation", np_images, epoch, dataformats="NHWC")
+                #     if tracker.name == "wandb":
+                #         tracker.log(
+                #             {
+                #                 "validation": [
+                #                     wandb.Image(image, caption=f"{i}: {args.validation_prompt}")
+                #                     for i, image in enumerate(images)
+                #                 ]
+                #             }
+                #         )
+
+                del pipeline
+                torch.cuda.empty_cache()
+
+    accelerator.wait_for_everyone()
 
     # Create the pipeline using using the trained modules and save it.
     if accelerator.is_main_process:
