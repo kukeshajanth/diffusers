@@ -951,7 +951,7 @@ def main(args):
                 break
 
         if accelerator.is_main_process:
-            if args.validation_prompt is not None and epoch % args.validation_epochs == 0:
+            if args.validation_prompt is not None and epoch % 50 == 0:
                 logger.info(
                     f"Running validation... \n Generating {args.num_validation_images} images with prompt:"
                     f" {args.validation_prompt}."
@@ -972,22 +972,26 @@ def main(args):
                 generator = torch.Generator(device=accelerator.device).manual_seed(args.seed)
                 images = [
                     pipeline(args.validation_prompt, num_inference_steps=25, generator=generator).images[0]
-                    for _ in range(args.num_validation_images)
+                    for _ in range(2)
                 ]
+                c = 0
+                for i in images:
+                    i.save('Image_' + str(epoch) + str(c) + '.png' )
+                    c += 1
 
-                for tracker in accelerator.trackers:
-                    if tracker.name == "tensorboard":
-                        np_images = np.stack([np.asarray(img) for img in images])
-                        tracker.writer.add_images("validation", np_images, epoch, dataformats="NHWC")
-                    if tracker.name == "wandb":
-                        tracker.log(
-                            {
-                                "validation": [
-                                    wandb.Image(image, caption=f"{i}: {args.validation_prompt}")
-                                    for i, image in enumerate(images)
-                                ]
-                            }
-                        )
+                # for tracker in accelerator.trackers:
+                #     if tracker.name == "tensorboard":
+                #         np_images = np.stack([np.asarray(img) for img in images])
+                #         tracker.writer.add_images("validation", np_images, epoch, dataformats="NHWC")
+                #     if tracker.name == "wandb":
+                #         tracker.log(
+                #             {
+                #                 "validation": [
+                #                     wandb.Image(image, caption=f"{i}: {args.validation_prompt}")
+                #                     for i, image in enumerate(images)
+                #                 ]
+                #             }
+                #         )
 
                 del pipeline
                 torch.cuda.empty_cache()
