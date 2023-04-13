@@ -49,30 +49,53 @@ def prepare_mask_and_masked_image(image, mask):
 
     return mask, masked_image
 
+# select random mask type
+def select_mask_type():
+    p = random.random()
+    if p <= 0.1:
+        return 'random'
+    elif p <= 0.35:
+        return 'Face'
+    elif p <= 0.6:
+        return 'Upper-clothes'
+    elif p <= 0.73:
+        return 'Pants'
+    elif p <= 0.925:
+        return 'Arm'
+    else:
+        return 'Background'
+
 
 # generate random masks
-def random_mask(im_shape, ratio=1, mask_full_image=False):
-    mask = Image.new("L", im_shape, 0)
-    draw = ImageDraw.Draw(mask)
-    size = (random.randint(0, int(im_shape[0] * ratio)), random.randint(0, int(im_shape[1] * ratio)))
-    # use this to always mask the whole image
-    if mask_full_image:
-        size = (int(im_shape[0] * ratio), int(im_shape[1] * ratio))
-    limits = (im_shape[0] - size[0] // 2, im_shape[1] - size[1] // 2)
-    center = (random.randint(size[0] // 2, limits[0]), random.randint(size[1] // 2, limits[1]))
-    draw_type = random.randint(0, 1)
-    if draw_type == 0 or mask_full_image:
-        draw.rectangle(
-            (center[0] - size[0] // 2, center[1] - size[1] // 2, center[0] + size[0] // 2, center[1] + size[1] // 2),
-            fill=255,
-        )
-    else:
-        draw.ellipse(
-            (center[0] - size[0] // 2, center[1] - size[1] // 2, center[0] + size[0] // 2, center[1] + size[1] // 2),
-            fill=255,
-        )
+def random_mask(image_filename, mask_root,im_shape, ratio=1, mask_full_image=False):
+    mask_type = select_mask_type()
+    if mask_type == 'random':
+        mask = Image.new("L", im_shape, 0)
+        draw = ImageDraw.Draw(mask)
+        size = (random.randint(0, int(im_shape[0] * ratio)), random.randint(0, int(im_shape[1] * ratio)))
+        # use this to always mask the whole image
+        if mask_full_image:
+            size = (int(im_shape[0] * ratio), int(im_shape[1] * ratio))
+        limits = (im_shape[0] - size[0] // 2, im_shape[1] - size[1] // 2)
+        center = (random.randint(size[0] // 2, limits[0]), random.randint(size[1] // 2, limits[1]))
+        draw_type = random.randint(0, 1)
+        if draw_type == 0 or mask_full_image:
+            draw.rectangle(
+                (center[0] - size[0] // 2, center[1] - size[1] // 2, center[0] + size[0] // 2, center[1] + size[1] // 2),
+                fill=255,
+            )
+        else:
+            draw.ellipse(
+                (center[0] - size[0] // 2, center[1] - size[1] // 2, center[0] + size[0] // 2, center[1] + size[1] // 2),
+                fill=255,
+            )
 
-    return mask
+        return mask
+    else:
+        mask_file = os.path.join(mask_data_root, mask_type, image_filename)
+        return Image.open(mask_file).resize((im_shape[0],im_shape[1]))
+        
+
 
 
 def parse_args():
@@ -96,6 +119,13 @@ def parse_args():
         default=None,
         required=True,
         help="A folder containing the training data of instance images.",
+    )
+    parser.add_argument(
+        "--mask_data_dir",
+        type=str,
+        default=None,
+        required=True,
+        help="A folder containing the mask data of instance images.",
     )
     parser.add_argument(
         "--class_data_dir",
@@ -323,6 +353,7 @@ class DreamBoothDataset(Dataset):
     def __init__(
         self,
         instance_data_root,
+        mask_data_root,
         instance_prompt,
         tokenizer,
         class_data_root=None,
@@ -333,13 +364,13 @@ class DreamBoothDataset(Dataset):
         self.size = size
         self.center_crop = center_crop
         self.tokenizer = tokenizer
-
+        self.mask_data_root = mask_data_root
         self.instance_data_root = Path(instance_data_root)
         if not self.instance_data_root.exists():
             raise ValueError("Instance images root doesn't exists.")
 
         self.instance_images_path = list(Path(instance_data_root).iterdir())
-        print(str(self.instance_images_path[0]).split('/')[-1])
+
         self.num_instance_images = len(self.instance_images_path)
         self.instance_prompt = instance_prompt
         self._length = self.num_instance_images
@@ -380,6 +411,8 @@ class DreamBoothDataset(Dataset):
 
         example["PIL_images"] = instance_image
         example["instance_images"] = self.image_transforms(instance_image)
+        example["Image_name"] = str(self.instance_images_path[0]).split('/')[-1]
+        example['Mast_data_root'] = self.mask_data_root
 
         example["instance_prompt_ids"] = self.tokenizer(
             self.instance_prompt,
@@ -601,6 +634,7 @@ def main():
 
     train_dataset = DreamBoothDataset(
         instance_data_root=args.instance_data_dir,
+        mask_data_root=args.mask_data_dir,
         instance_prompt=args.instance_prompt,
         class_data_root=args.class_data_dir if args.with_prior_preservation else None,
         class_prompt=args.class_prompt,
@@ -624,8 +658,10 @@ def main():
         masked_images = []
         for example in examples:
             pil_image = example["PIL_images"]
+            image_filename = example["Image_name"] 
+            mask_root = example['Mast_data_root']
             # generate a random mask
-            mask = random_mask(pil_image.size, 1, True)
+            mask = random_mask(image_filename, mask_root, pil_image.size, 1, True)
             # prepare mask and masked image
             mask, masked_image = prepare_mask_and_masked_image(pil_image, mask)
 
