@@ -9,8 +9,8 @@ from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
 
 import networks
-from utils.transforms import transform_logits
-from datasets.simple_extractor_dataset import SimpleFolderDataset
+from transforms_util import transform_logits
+from simple_extractor_dataset import SimpleFolderDataset
 
 
 def create_mask(mask_creator_dir, class_dir, mask_dir):
