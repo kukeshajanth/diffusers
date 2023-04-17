@@ -92,7 +92,7 @@ def random_mask(image_filename, mask_root,im_shape, ratio=1, mask_full_image=Fal
 
         return mask
     else:
-        mask_file = os.path.join(mask_data_root, mask_type, image_filename)
+        mask_file = os.path.join(mask_root, mask_type, image_filename)
         return Image.open(mask_file).resize((im_shape[0],im_shape[1]))
         
 
@@ -411,7 +411,7 @@ class DreamBoothDataset(Dataset):
 
         example["PIL_images"] = instance_image
         example["instance_images"] = self.image_transforms(instance_image)
-        example["Image_name"] = str(self.instance_images_path[0]).split('/')[-1]
+        example["Image_name"] = str(self.instance_images_path[index % self.num_instance_images]).split('/')[-1]
         example['Mast_data_root'] = self.mask_data_root
 
         example["instance_prompt_ids"] = self.tokenizer(
