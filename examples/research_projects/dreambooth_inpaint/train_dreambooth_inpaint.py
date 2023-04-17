@@ -874,8 +874,8 @@ def main():
                 if global_step % args.checkpointing_steps == 0:
                     if accelerator.is_main_process:
                         save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
-                        unet1 = unet.to(torch.float32)
-                        unet1.save_attn_procs(save_path)
+                        # unet1 = unet.to(torch.float32)
+                        # unet1.save_attn_procs(save_path)
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
 
