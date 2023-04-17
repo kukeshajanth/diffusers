@@ -21,51 +21,51 @@ def create_mask(mask_creator_dir, class_dir, mask_dir):
 
     val_list = [[0],[1,2,4,13],[5,6,7,11],[8,9,10,12,18,19],[0,1,2,4,13,14,15,16,17]]
     for c,j in enumerate(pallete_dict.keys()):
-    val = val_list[c]
-    pallete = []
-    for i in range(60):
-        
-        if len(val) == 1:
-        if (i >= (val[0]*3)) & (i < ((val[0]+1)*3)):
-            pallete.append(0)
-        else:
-            pallete.append(255)
-        if len(val) == 2:
-        if (i >= (val[0]*3)) & (i < ((val[0]+1)*3)) or (i >= (val[1]*3)) & (i < ((val[1]+1)*3)):
-            pallete.append(0)
-        else:
-            pallete.append(255)
-        if len(val) == 3:
-        if (i >= (val[0]*3)) & (i < ((val[0]+1)*3)) or (i >= (val[1]*3)) & (i < ((val[1]+1)*3)) or (i >= (val[2]*3)) & (i < ((val[2]+1)*3)):
-            pallete.append(255)
-        else:
-            pallete.append(0)
-        if len(val) == 4:
-        if (i >= (val[0]*3)) & (i < ((val[0]+1)*3)) or (i >= (val[1]*3)) & (i < ((val[1]+1)*3)) or (i >= (val[2]*3)) & (i < ((val[2]+1)*3)) or (i >= (val[3]*3)) & (i < ((val[3]+1)*3)):
-            if j == 'Face':
-                pallete.append(255)
-            else:
-                pallete.append(0)
-        else:
-            if j == 'Face':
+      val = val_list[c]
+      pallete = []
+      for i in range(60):
+          
+          if len(val) == 1:
+            if (i >= (val[0]*3)) & (i < ((val[0]+1)*3)):
                 pallete.append(0)
             else:
                 pallete.append(255)
-        if len(val) == 5:
-        if (i >= (val[0]*3)) & (i < ((val[0]+1)*3)) or (i >= (val[1]*3)) & (i < ((val[1]+1)*3)) or (i >= (val[2]*3)) & (i < ((val[2]+1)*3)) or (i >= (val[3]*3)) & (i < ((val[3]+1)*3)) or (i >= (val[4]*3)) & (i < ((val[4]+1)*3)):
-            pallete.append(0)
-        else:
-            pallete.append(255)
-        if len(val) == 6:
-        if (i >= (val[0]*3)) & (i < ((val[0]+1)*3)) or (i >= (val[1]*3)) & (i < ((val[1]+1)*3)) or (i >= (val[2]*3)) & (i < ((val[2]+1)*3)) or (i >= (val[3]*3)) & (i < ((val[3]+1)*3)) or (i >= (val[4]*3)) & (i < ((val[4]+1)*3)) or (i >= (val[5]*3)) & (i < ((val[5]+1)*3)):
-            pallete.append(0)
-        else:
-            pallete.append(255)
-        if len(val) == 9:
-        if (i >= (val[0]*3)) & (i < ((val[0]+1)*3)) or (i >= (val[1]*3)) & (i < ((val[1]+1)*3)) or (i >= (val[2]*3)) & (i < ((val[2]+1)*3)) or (i >= (val[3]*3)) & (i < ((val[3]+1)*3)) or (i >= (val[4]*3)) & (i < ((val[4]+1)*3)) or (i >= (val[5]*3)) & (i < ((val[5]+1)*3)) or (i >= (val[6]*3)) & (i < ((val[6]+1)*3)) or (i >= (val[7]*3)) & (i < ((val[7]+1)*3)) or (i >= (val[8]*3)) & (i < ((val[8]+1)*3)):
-            pallete.append(255)
-        else:
-            pallete.append(0)
+          if len(val) == 2:
+            if (i >= (val[0]*3)) & (i < ((val[0]+1)*3)) or (i >= (val[1]*3)) & (i < ((val[1]+1)*3)):
+                pallete.append(0)
+            else:
+                pallete.append(255)
+          if len(val) == 3:
+            if (i >= (val[0]*3)) & (i < ((val[0]+1)*3)) or (i >= (val[1]*3)) & (i < ((val[1]+1)*3)) or (i >= (val[2]*3)) & (i < ((val[2]+1)*3)):
+                pallete.append(255)
+            else:
+                pallete.append(0)
+          if len(val) == 4:
+            if (i >= (val[0]*3)) & (i < ((val[0]+1)*3)) or (i >= (val[1]*3)) & (i < ((val[1]+1)*3)) or (i >= (val[2]*3)) & (i < ((val[2]+1)*3)) or (i >= (val[3]*3)) & (i < ((val[3]+1)*3)):
+                if j == 'Face':
+                    pallete.append(255)
+                else:
+                    pallete.append(0)
+            else:
+                if j == 'Face':
+                    pallete.append(0)
+                else:
+                    pallete.append(255)
+          if len(val) == 5:
+            if (i >= (val[0]*3)) & (i < ((val[0]+1)*3)) or (i >= (val[1]*3)) & (i < ((val[1]+1)*3)) or (i >= (val[2]*3)) & (i < ((val[2]+1)*3)) or (i >= (val[3]*3)) & (i < ((val[3]+1)*3)) or (i >= (val[4]*3)) & (i < ((val[4]+1)*3)):
+                pallete.append(0)
+            else:
+                pallete.append(255)
+          if len(val) == 6:
+            if (i >= (val[0]*3)) & (i < ((val[0]+1)*3)) or (i >= (val[1]*3)) & (i < ((val[1]+1)*3)) or (i >= (val[2]*3)) & (i < ((val[2]+1)*3)) or (i >= (val[3]*3)) & (i < ((val[3]+1)*3)) or (i >= (val[4]*3)) & (i < ((val[4]+1)*3)) or (i >= (val[5]*3)) & (i < ((val[5]+1)*3)):
+                pallete.append(0)
+            else:
+                pallete.append(255)
+          if len(val) == 9:
+            if (i >= (val[0]*3)) & (i < ((val[0]+1)*3)) or (i >= (val[1]*3)) & (i < ((val[1]+1)*3)) or (i >= (val[2]*3)) & (i < ((val[2]+1)*3)) or (i >= (val[3]*3)) & (i < ((val[3]+1)*3)) or (i >= (val[4]*3)) & (i < ((val[4]+1)*3)) or (i >= (val[5]*3)) & (i < ((val[5]+1)*3)) or (i >= (val[6]*3)) & (i < ((val[6]+1)*3)) or (i >= (val[7]*3)) & (i < ((val[7]+1)*3)) or (i >= (val[8]*3)) & (i < ((val[8]+1)*3)):
+                pallete.append(255)
+            else:
+                pallete.append(0)
 
     pallete_dict[j] = pallete
 
@@ -153,8 +153,10 @@ def create_mask(mask_creator_dir, class_dir, mask_dir):
             output_img = Image.fromarray(np.asarray(parsing_result, dtype=np.uint8))
 
             for loc, key in  enumerate(pallete_dict.keys()):
-            parsing_result_path = os.path.join(folder_path[loc], img_name)
+                if '.jpg' in img_name:
+                    img_name = img_name.replace('.jpg','.png')
+                parsing_result_path = os.path.join(folder_path[loc], img_name)
 
-            output_img.putpalette(pallete_dict[key])
-            output_img.save(parsing_result_path)
+                output_img.putpalette(pallete_dict[key])
+                output_img.save(parsing_result_path)
 

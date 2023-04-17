@@ -101,6 +101,29 @@ def random_mask(image_filename, mask_root,im_shape, ratio=1, mask_full_image=Fal
         mask_file = os.path.join(mask_root, mask_type, image_filename)
         return Image.open(mask_file).resize((im_shape[0],im_shape[1]))
 
+def fake_mask_(im_shape, ratio=1, mask_full_image=False):
+      mask = Image.new("L", im_shape, 0)
+      draw = ImageDraw.Draw(mask)
+      size = (random.randint(0, int(im_shape[0] * ratio)), random.randint(0, int(im_shape[1] * ratio)))
+      # use this to always mask the whole image
+      if mask_full_image:
+          size = (int(im_shape[0] * ratio), int(im_shape[1] * ratio))
+      limits = (im_shape[0] - size[0] // 2, im_shape[1] - size[1] // 2)
+      center = (random.randint(size[0] // 2, limits[0]), random.randint(size[1] // 2, limits[1]))
+      draw_type = random.randint(0, 1)
+      if draw_type == 0 or mask_full_image:
+          draw.rectangle(
+              (center[0] - size[0] // 2, center[1] - size[1] // 2, center[0] + size[0] // 2, center[1] + size[1] // 2),
+              fill=255,
+          )
+      else:
+          draw.ellipse(
+              (center[0] - size[0] // 2, center[1] - size[1] // 2, center[0] + size[0] // 2, center[1] + size[1] // 2),
+              fill=255,
+          )
+
+      return mask
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Simple example of a training script.")
@@ -435,6 +458,7 @@ class DreamBoothDataset(Dataset):
             if not class_image.mode == "RGB":
                 class_image = class_image.convert("RGB")
             class_image = self.image_transforms_resize_and_crop(class_image)
+            example["class_image_name"] = str(self.class_images_path[index % self.num_class_images]).split('/')[-1]
             example["class_images"] = self.image_transforms(class_image)
             example["class_PIL_images"] = class_image
             example["class_prompt_ids"] = self.tokenizer(
@@ -522,13 +546,14 @@ def main():
                 transform_to_pil = transforms.ToPILImage()
                 fake_pil_images = transform_to_pil(fake_images)
 
-                fake_mask = random_mask((args.resolution, args.resolution), ratio=1, mask_full_image=True)
+                fake_mask = fake_mask_((args.resolution, args.resolution), ratio=1, mask_full_image=True)
+ 
 
                 images = pipeline(prompt=example["prompt"], mask_image=fake_mask, image=fake_pil_images).images
 
                 for i, image in enumerate(images):
                     hash_image = hashlib.sha1(image.tobytes()).hexdigest()
-                    image_filename = class_images_dir / f"{example['index'][i] + cur_class_images}-{hash_image} + '-class.jpg"
+                    image_filename = class_images_dir / f"{example['index'][i] + cur_class_images}-{hash_image}-class.png"
                     image.save(image_filename)
             print('Started Creating masks')
             create_mask(Path(args.mask_creation_dir), class_images_dir, Path(args.mask_data_dir))         
@@ -601,6 +626,8 @@ def main():
     train_dataset = DreamBoothDataset(
         instance_data_root=args.instance_data_dir,
         instance_prompt=args.instance_prompt,
+        mask_data_root= args.mask_data_dir,
+        mask_creator_dir=args.mask_creation_dir,
         class_data_root=args.class_data_dir if args.with_prior_preservation else None,
         class_prompt=args.class_prompt,
         tokenizer=tokenizer,
@@ -622,9 +649,13 @@ def main():
         masks = []
         masked_images = []
         for example in examples:
-            pil_image = example["PIL_images"]
+
             # generate a random mask
-            mask = random_mask(pil_image.size, 1, True)
+            pil_image = example["PIL_images"]
+            image_filename = example["Image_name"] 
+            mask_root = example['Mast_data_root']
+            # generate a random mask
+            mask = random_mask(image_filename, mask_root, pil_image.size, 1, True)
             # prepare mask and masked image
             mask, masked_image = prepare_mask_and_masked_image(pil_image, mask)
 
@@ -633,8 +664,11 @@ def main():
 
         if args.with_prior_preservation:
             for pil_image in pior_pil:
+                mask_root = example['Mast_data_root']
+                image_filename = example["class_image_name"]
                 # generate a random mask
-                mask = random_mask(pil_image.size, 1, False)
+                mask = random_mask(image_filename, mask_root, pil_image.size, 1, True)
+                # mask = random_mask(pil_image.size, 1, False)
                 # prepare mask and masked image
                 mask, masked_image = prepare_mask_and_masked_image(pil_image, mask)
 
@@ -854,7 +888,7 @@ def main():
 
         count += 1
         if accelerator.is_main_process:
-            if args.validation_prompt is not None and count % 20 == 0:
+            if args.validation_prompt is not None and count % 15 == 0:
                 logger.info(
                     f"Running validation... \n Generating {args.num_validation_images} images with prompt:"
                     f" {args.validation_prompt}."
