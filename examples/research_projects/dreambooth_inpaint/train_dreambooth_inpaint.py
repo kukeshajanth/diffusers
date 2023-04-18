@@ -778,7 +778,7 @@ def main():
     # Only show the progress bar once on each machine.
     progress_bar = tqdm(range(global_step, args.max_train_steps), disable=not accelerator.is_local_main_process)
     progress_bar.set_description("Steps")
-    cout = 0
+    count = 0
     for epoch in range(first_epoch, args.num_train_epochs):
         unet.train()
         for step, batch in enumerate(train_dataloader):
@@ -888,25 +888,33 @@ def main():
 
         count += 1
         if accelerator.is_main_process:
-            if args.validation_prompt is not None and count % 15 == 0:
+            if args.validation_prompt is not None and count % 1 == 0:
                 logger.info(
                     f"Running validation... \n Generating {args.num_validation_images} images with prompt:"
                     f" {args.validation_prompt}."
                 )
                 # create pipeline
+                torch_dtype = torch.float16 if accelerator.device.type == "cuda" else torch.float32
                 pipeline = StableDiffusionInpaintPipeline.from_pretrained(
-                    args.pretrained_model_name_or_path,
+                    args.pretrained_model_name_or_path, 
                     unet=accelerator.unwrap_model(unet),
-                    text_encoder=accelerator.unwrap_model(text_encoder),
-                    revision='fp16',
-                    torch_dtype=weight_dtype,
+                    # text_encoder=accelerator.unwrap_model(text_encoder),
+                     safety_checker=None
                 )
+                # pipeline.set_progress_bar_config(disable=True)
+                # pipeline = StableDiffusionInpaintPipeline.from_pretrained(
+                #     args.pretrained_model_name_or_path,
+                #     unet=accelerator.unwrap_model(unet),
+                #     text_encoder=accelerator.unwrap_model(text_encoder),
+                #     revision='fp16',
+                #     torch_dtype=weight_dtype,
+                # )
                 # pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
                 pipeline = pipeline.to(accelerator.device)
                 pipeline.set_progress_bar_config(disable=True)
 
                 # run inference
-                generator = torch.Generator(device=accelerator.device).manual_seed(args.seed)
+                # generator = torch.Generator(device=accelerator.device).manual_seed(args.seed)
                 from PIL import Image
                 image_val = Image.open('/content/drive/MyDrive/Dreambooth_inpainting/Self-Correction-Human-Parsing/inputs/shein.png').resize((512,512))
                 mask_image_val = Image.open('/content/drive/MyDrive/Dreambooth_inpainting/Self-Correction-Human-Parsing/outputs/Upper-clothes/shein.png').resize((512,512))
@@ -914,12 +922,12 @@ def main():
                 images = [
                     pipeline(prompt = args.validation_prompt, image = image_val, mask_image = mask_image_val,
                     negative_prompt = "(deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime:1.4), text, close up, cropped, out of frame, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck",
-                    num_inference_steps=25, generator=generator).images[0]
+                    num_inference_steps=25).images[0]
                     for _ in range(2)
                 ]
                 c = 0
                 for i in images:
-                    i.save('Image_' + str(epoch) + str(c) + '.png' )
+                    i.save('/content/drive/MyDrive/Dreambooth_inpainting/checkpoint_images/Image_' + str(epoch) + str(c) + '.png' )
                     c += 1
 
                 # for tracker in accelerator.trackers:
