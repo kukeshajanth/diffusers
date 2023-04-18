@@ -609,7 +609,7 @@ def main(args):
 
                 for i, image in enumerate(images):
                     hash_image = hashlib.sha1(image.tobytes()).hexdigest()
-                    image_filename = class_images_dir / f"{example['index'][i] + cur_class_images}-{hash_image}.jpg"
+                    image_filename = class_images_dir / f"{example['index'][i] + cur_class_images}-{hash_image}.png"
                     image.save(image_filename)
 
             del pipeline
@@ -881,12 +881,13 @@ def main(args):
                 continue
 
             with accelerator.accumulate(unet):
+                weight_dtype = torch.float16
                 # Convert images to latent space
                 latents = vae.encode(batch["pixel_values"].to(dtype=weight_dtype)).latent_dist.sample()
                 latents = latents * vae.config.scaling_factor
 
                 # Sample noise that we'll add to the latents
-                noise = torch.randn_like(latents)
+                noise = torch.randn_like(latents).to(dtype=weight_dtype)
                 bsz = latents.shape[0]
                 # Sample a random timestep for each image
                 timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (bsz,), device=latents.device)
@@ -898,6 +899,10 @@ def main(args):
 
                 # Get the text embedding for conditioning
                 encoder_hidden_states = text_encoder(batch["input_ids"])[0]
+
+                noisy_latents = noisy_latents.to(dtype=weight_dtype)
+                timesteps = timesteps.to(dtype=weight_dtype)
+                encoder_hidden_states = encoder_hidden_states.to(dtype=weight_dtype)
 
                 # Predict the noise residual
                 model_pred = unet(noisy_latents, timesteps, encoder_hidden_states).sample
@@ -943,8 +948,9 @@ def main(args):
                     if accelerator.is_main_process:
                         save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
                         accelerator.save_state(save_path)
-                        unet1 = unet.to(torch.float32)
-                        unet1.save_attn_procs(save_path)
+                        # unet = unet.to(torch.float32)
+                        # unet.to(dtype=torch.float32).save_attn_procs(save_path)
+                        # unet = unet.to(dtype=weight_dtype)
                         logger.info(f"Saved state to {save_path}")
 
             logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
@@ -955,12 +961,16 @@ def main(args):
                 break
 
         if accelerator.is_main_process:
-            if args.validation_prompt is not None and epoch % 1 == 0:
+            if args.validation_prompt is not None and epoch % args.validation_epochs == 0:
                 logger.info(
                     f"Running validation... \n Generating {args.num_validation_images} images with prompt:"
                     f" {args.validation_prompt}."
                 )
                 # create pipeline
+                # save_path = os.path.join(args.output_dir, f"checkpoint-1")
+                # # accelerator.save_state(save_path)
+                # unet1 = unet.to(torch.float32)
+                # unet1.save_attn_procs(save_path)
                 pipeline = DiffusionPipeline.from_pretrained(
                     args.pretrained_model_name_or_path,
                     unet=accelerator.unwrap_model(unet),
@@ -973,30 +983,23 @@ def main(args):
                 pipeline = pipeline.to(accelerator.device)
                 pipeline.set_progress_bar_config(disable=True)
 
-                # run inference
-                generator = torch.Generator(device=accelerator.device).manual_seed(args.seed)
-                images = [
-                    pipeline(args.validation_prompt, num_inference_steps=40, generator=generator).images[0]
-                    for _ in range(2)
-                ]
-                c = 0
-                for i in images:
-                    i.save('/content/drive/MyDrive/Dreambooth_inpainting/checkpoint_images/Image_' + str(epoch) + str(c) + '.png' )
-                    c += 1
+                # pipeline.unet.load_attn_procs(save_path)
 
-                # for tracker in accelerator.trackers:
-                #     if tracker.name == "tensorboard":
-                #         np_images = np.stack([np.asarray(img) for img in images])
-                #         tracker.writer.add_images("validation", np_images, epoch, dataformats="NHWC")
-                #     if tracker.name == "wandb":
-                #         tracker.log(
-                #             {
-                #                 "validation": [
-                #                     wandb.Image(image, caption=f"{i}: {args.validation_prompt}")
-                #                     for i, image in enumerate(images)
-                #                 ]
-                #             }
-                #         )
+                # run inference
+                try:
+                  generator = torch.Generator(device=accelerator.device).manual_seed(args.seed)
+                  prompt_ = ["RAW photo,sks man close up portrait photo","RAW photo, sks man wearing shirt","Raw photo, sks man looking at camera, detailed face"]
+                  images = [
+                      pipeline(prompt_[pp], num_inference_steps=40, 
+                      negative_prompt = "(deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime:1.4), text, close up, cropped, out of frame, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck").images[0]
+                      for pp in range(3)
+                  ]
+                  c = 0
+                  for i in images:
+                      i.save('/content/drive/MyDrive/Dreambooth_inpainting/checkpoint_images/Image_' + str(epoch) + str(c) + '.png' )
+                      c += 1
+                except:
+                  print('Failed - {}'.format(c))
 
                 del pipeline
                 torch.cuda.empty_cache()
@@ -1017,6 +1020,8 @@ def main(args):
 
         # load attention processors
         pipeline.unet.load_attn_procs(args.output_dir)
+
+        pipeline.save_pretrained(args.output_dir + '/full_model')
 
         # run inference
         if args.validation_prompt and args.num_validation_images > 0:
