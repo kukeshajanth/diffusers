@@ -988,10 +988,10 @@ def main(args):
                 # run inference
                 try:
                   generator = torch.Generator(device=accelerator.device).manual_seed(args.seed)
-                  prompt_ = ["RAW photo,sks man close up portrait photo","RAW photo, sks man wearing shirt","Raw photo, sks man looking at camera, detailed face"]
+                  prompt_ = ["RAW photo,sks man close up portrait photo","RAW photo, sks man wearing shirt","Raw photo,sks man near park wearing shirt, skin details, high detailed, 8k hdr, dslr"]
                   images = [
                       pipeline(prompt_[pp], num_inference_steps=40, 
-                      negative_prompt = negative_prompt = "deformed, bad anatomy, disfigured, poorly drawn face, mutation, mutated, extra limb, ugly, disgusting, poorly drawn hands, missing limb, floating limbs, disconnected limbs, malformed hands, blurry, ((((mutated hands and fingers)))), watermark, watermarked, oversaturated, censored, distorted hands, amputation, missing hands, obese, doubled face, double hands, ((((realistic, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime)))), cropped, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, mutation, deformed, dehydrated, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck").images[0]
+                      negative_prompt = "deformed, bad anatomy, disfigured, poorly drawn face, mutation, mutated, extra limb, ugly, disgusting, poorly drawn hands, missing limb, floating limbs, disconnected limbs, malformed hands, blurry, ((((mutated hands and fingers)))), watermark, watermarked, oversaturated, censored, distorted hands, amputation, missing hands, obese, doubled face, double hands, ((((realistic, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime)))), cropped, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, mutation, deformed, dehydrated, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck").images[0]
                       for pp in range(3)
                   ]
                   c = 0
