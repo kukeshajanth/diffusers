@@ -314,6 +314,10 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--use_8bit_adam", action="store_true", help="Whether or not to use 8-bit Adam from bitsandbytes."
     )
+    parser.add_argument(
+        "--train_text_encoder", action="store_true", help="Whether or not to train text encoder."
+    )
+
     parser.add_argument("--adam_beta1", type=float, default=0.9, help="The beta1 parameter for the Adam optimizer.")
     parser.add_argument("--adam_beta2", type=float, default=0.999, help="The beta2 parameter for the Adam optimizer.")
     parser.add_argument("--adam_weight_decay", type=float, default=1e-2, help="Weight decay to use.")
@@ -951,7 +955,7 @@ def main(args):
                 break
 
         if accelerator.is_main_process:
-            if args.validation_prompt is not None and epoch % 50 == 0:
+            if args.validation_prompt is not None and epoch % 1 == 0:
                 logger.info(
                     f"Running validation... \n Generating {args.num_validation_images} images with prompt:"
                     f" {args.validation_prompt}."
@@ -963,6 +967,7 @@ def main(args):
                     text_encoder=accelerator.unwrap_model(text_encoder),
                     revision=args.revision,
                     torch_dtype=weight_dtype,
+                    safety_checker=None
                 )
                 pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
                 pipeline = pipeline.to(accelerator.device)
@@ -971,12 +976,12 @@ def main(args):
                 # run inference
                 generator = torch.Generator(device=accelerator.device).manual_seed(args.seed)
                 images = [
-                    pipeline(args.validation_prompt, num_inference_steps=25, generator=generator).images[0]
+                    pipeline(args.validation_prompt, num_inference_steps=40, generator=generator).images[0]
                     for _ in range(2)
                 ]
                 c = 0
                 for i in images:
-                    i.save('Image_' + str(epoch) + str(c) + '.png' )
+                    i.save('/content/drive/MyDrive/Dreambooth_inpainting/checkpoint_images/Image_' + str(epoch) + str(c) + '.png' )
                     c += 1
 
                 # for tracker in accelerator.trackers:
