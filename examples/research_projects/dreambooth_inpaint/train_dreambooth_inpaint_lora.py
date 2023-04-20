@@ -26,7 +26,7 @@ from diffusers.optimization import get_scheduler
 from diffusers.utils import check_min_version
 from diffusers.utils.import_utils import is_xformers_available
 
-
+from diffusers import ControlNetModel, UniPCMultistepScheduler
 # Will error if the minimal version of diffusers is not installed. Remove at your own risks.
 check_min_version("0.13.0.dev0")
 
@@ -929,6 +929,7 @@ def main():
                     safety_checker=None
                 )
                 # pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
+                pipeline.scheduler = UniPCMultistepScheduler.from_config(pipeline.scheduler.config)
                 pipeline = pipeline.to(accelerator.device)
                 pipeline.set_progress_bar_config(disable=True)
 
@@ -938,11 +939,11 @@ def main():
                 image_val = Image.open('/content/drive/MyDrive/Dreambooth_inpainting/Self-Correction-Human-Parsing/inputs/shein.png').resize((512,512))
                 mask_image_val = Image.open('/content/drive/MyDrive/Dreambooth_inpainting/Self-Correction-Human-Parsing/outputs/Upper-clothes/shein.png').resize((512,512))
                 # openpose_image = Image.open('/content/drive/MyDrive/Dreambooth_inpainting/controlnet_image/control.png').resize((512,512))
-                prompt_ = ["Raw photo,sks man,modelshoot style, detailed face, high detailed, 8k hdr, dslr","RAW photo, sks man wearing shirt,detailed face, high detailed, 8k hdr, dslr","Raw photo,sks man near park wearing shirt, detailed face, skin details, high detailed, 8k hdr, dslr"]
+                prompt_ = ["Raw photo,sks man,modelshoot style, detailed face, high detailed, 8k hdr, dslr","RAW photo, sks man wearing shirt,,modelshoot style, detailed face, high detailed, 8k hdr, dslr","Raw photo,sks man near park wearing shirt,,modelshoot style, detailed face, skin details, high detailed, 8k hdr, dslr"]
                 images = [
                     pipeline(prompt = prompt_[pp], image = image_val, mask_image = mask_image_val,
                     negative_prompt = "(deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime:1.4), text, close up, cropped, out of frame, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck",
-                    num_inference_steps=40).images[0]
+                    num_inference_steps=50).images[0]
                     for pp in range(3)
                 ]
                 c = 0
