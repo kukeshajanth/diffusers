@@ -857,8 +857,8 @@ def main():
                 if global_step % args.checkpointing_steps == 0:
                     if accelerator.is_main_process:
                         save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
-                        unet1 = unet.to(torch.float32)
-                        unet1.save_attn_procs(save_path)
+                        # unet1 = unet.to(torch.float32)
+                        # unet1.save_attn_procs(save_path)
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
 
@@ -870,7 +870,7 @@ def main():
                 break
         count += 1
         if accelerator.is_main_process:
-            if args.validation_prompt is not None and count % 15 == 0:
+            if args.validation_prompt is not None and global_step % 200 == 0 :
                 logger.info(
                     f"Running validation... \n Generating {args.num_validation_images} images with prompt:"
                     f" {args.validation_prompt}."
@@ -893,15 +893,16 @@ def main():
                 image_val = Image.open('/content/drive/MyDrive/Dreambooth_inpainting/Self-Correction-Human-Parsing/inputs/shein.png').resize((512,512))
                 mask_image_val = Image.open('/content/drive/MyDrive/Dreambooth_inpainting/Self-Correction-Human-Parsing/outputs/Upper-clothes/shein.png').resize((512,512))
                 # openpose_image = Image.open('/content/drive/MyDrive/Dreambooth_inpainting/controlnet_image/control.png').resize((512,512))
+                prompt_ = ["RAW photo,sks man close up portrait photo","RAW photo, sks man wearing shirt","Raw photo,sks man near park wearing shirt, skin details, high detailed, 8k hdr, dslr"]
                 images = [
-                    pipeline(prompt = args.validation_prompt, image = image_val, mask_image = mask_image_val,
+                    pipeline(prompt = prompt_[pp], image = image_val, mask_image = mask_image_val,
                     negative_prompt = "(deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime:1.4), text, close up, cropped, out of frame, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck",
-                    num_inference_steps=25, generator=generator).images[0]
-                    for _ in range(2)
+                    num_inference_steps=40, generator=generator).images[0]
+                    for pp in range(3)
                 ]
                 c = 0
                 for i in images:
-                    i.save('Image_' + str(epoch) + str(c) + '.png' )
+                    i.save('/content/drive/MyDrive/Dreambooth_inpainting/checkpoint_images/Image_' + str(epoch) + str(c) + '.png' )
                     c += 1
 
                 # for tracker in accelerator.trackers:
