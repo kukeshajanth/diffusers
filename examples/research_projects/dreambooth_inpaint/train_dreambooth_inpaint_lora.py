@@ -888,16 +888,16 @@ def main():
                 pipeline.set_progress_bar_config(disable=True)
 
                 # run inference
-                generator = torch.Generator(device=accelerator.device).manual_seed(args.seed)
+                # generator = torch.Generator(device=accelerator.device).manual_seed(args.seed)
                 from PIL import Image
                 image_val = Image.open('/content/drive/MyDrive/Dreambooth_inpainting/Self-Correction-Human-Parsing/inputs/shein.png').resize((512,512))
                 mask_image_val = Image.open('/content/drive/MyDrive/Dreambooth_inpainting/Self-Correction-Human-Parsing/outputs/Upper-clothes/shein.png').resize((512,512))
                 # openpose_image = Image.open('/content/drive/MyDrive/Dreambooth_inpainting/controlnet_image/control.png').resize((512,512))
-                prompt_ = ["RAW photo,sks man close up portrait photo","RAW photo, sks man wearing shirt","Raw photo,sks man near park wearing shirt, skin details, high detailed, 8k hdr, dslr"]
+                prompt_ = ["Raw photo,sks man,modelshoot style, detailed face, high detailed, 8k hdr, dslr","RAW photo, sks man wearing shirt,detailed face, high detailed, 8k hdr, dslr","Raw photo,sks man near park wearing shirt, detailed face, skin details, high detailed, 8k hdr, dslr"]
                 images = [
                     pipeline(prompt = prompt_[pp], image = image_val, mask_image = mask_image_val,
                     negative_prompt = "(deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime:1.4), text, close up, cropped, out of frame, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck",
-                    num_inference_steps=40, generator=generator).images[0]
+                    num_inference_steps=40).images[0]
                     for pp in range(3)
                 ]
                 c = 0
