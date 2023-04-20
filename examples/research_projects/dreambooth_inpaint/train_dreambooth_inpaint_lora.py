@@ -870,7 +870,7 @@ def main():
                 break
         count += 1
         if accelerator.is_main_process:
-            if args.validation_prompt is not None and global_step % 200 == 0 :
+            if args.validation_prompt is not None and global_step % 100 == 0:
                 logger.info(
                     f"Running validation... \n Generating {args.num_validation_images} images with prompt:"
                     f" {args.validation_prompt}."
