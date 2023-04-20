@@ -288,6 +288,10 @@ def parse_args():
     parser.add_argument(
         "--use_8bit_adam", action="store_true", help="Whether or not to use 8-bit Adam from bitsandbytes."
     )
+    parser.add_argument(
+        "--enable_xformers_memory_efficient_attention",
+        action="store_true", help="Whether to enable efficient attention"
+    )
     parser.add_argument("--adam_beta1", type=float, default=0.9, help="The beta1 parameter for the Adam optimizer.")
     parser.add_argument("--adam_beta2", type=float, default=0.999, help="The beta2 parameter for the Adam optimizer.")
     parser.add_argument("--adam_weight_decay", type=float, default=1e-2, help="Weight decay to use.")
@@ -850,6 +854,10 @@ def main():
                 # Get the text embedding for conditioning
                 encoder_hidden_states = text_encoder(batch["input_ids"])[0]
 
+                latent_model_input = latent_model_input.to(dtype=weight_dtype)
+                timesteps = timesteps.to(dtype=weight_dtype)
+                encoder_hidden_states = encoder_hidden_states.to(dtype=weight_dtype)
+
                 # Predict the noise residual
                 noise_pred = unet(latent_model_input, timesteps, encoder_hidden_states).sample
 
@@ -918,6 +926,7 @@ def main():
                     text_encoder=accelerator.unwrap_model(text_encoder),
                     revision='fp16',
                     torch_dtype=weight_dtype,
+                    safety_checker=None
                 )
                 # pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
                 pipeline = pipeline.to(accelerator.device)
